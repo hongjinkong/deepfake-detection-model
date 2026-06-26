@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepFake Detector</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0f;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #6c63ff, #48cae4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1rem;
+            margin-bottom: 50px;
+        }
+
+        /* 업로드 영역 */
+        .upload-area {
+            width: 100%;
+            max-width: 500px;
+            border: 2px dashed #6c63ff;
+            border-radius: 20px;
+            padding: 50px 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #12121a;
+        }
+
+        .upload-area:hover { background: #1a1a2e; border-color: #48cae4; }
+
+        .upload-icon { font-size: 3rem; margin-bottom: 15px; }
+
+        .upload-text { color: #aaa; font-size: 1rem; }
+
+        .upload-text span { color: #6c63ff; font-weight: 600; }
+
+        #fileInput { display: none; }
+
+        /* 미리보기 */
+        #preview {
+            width: 100%;
+            max-width: 500px;
+            margin-top: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            display: none;
+        }
+
+        #preview img {
+            width: 100%;
+            border-radius: 15px;
+        }
+
+        /* 분석 버튼 */
+        #analyzeBtn {
+            margin-top: 25px;
+            padding: 15px 50px;
+            background: linear-gradient(135deg, #6c63ff, #48cae4);
+            border: none;
+            border-radius: 50px;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: none;
+            transition: transform 0.2s;
+        }
+
+        #analyzeBtn:hover { transform: scale(1.05); }
+
+        /* 로딩 */
+        #loading {
+            display: none;
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #333;
+            border-top: 4px solid #6c63ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 결과 영역 */
+        #result { display: none; width: 100%; max-width: 900px; margin-top: 40px; }
+
+        /* 판정 배너 */
+        .verdict {
+            text-align: center;
+            padding: 25px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            font-weight: 900;
+            letter-spacing: 3px;
+        }
+
+        .verdict.fake {
+            background: rgba(255, 50, 50, 0.15);
+            border: 2px solid #ff3232;
+            color: #ff3232;
+        }
+
+        .verdict.real {
+            background: rgba(50, 255, 100, 0.15);
+            border: 2px solid #32ff64;
+            color: #32ff64;
+        }
+
+        /* 신뢰도 바 */
+        .confidence-wrap {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .confidence-label {
+            font-size: 1rem;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        .confidence-bar-bg {
+            width: 100%;
+            background: #222;
+            border-radius: 50px;
+            height: 18px;
+            overflow: hidden;
+        }
+
+        .confidence-bar {
+            height: 100%;
+            border-radius: 50px;
+            transition: width 1s ease;
+        }
+
+        .confidence-bar.fake { background: linear-gradient(90deg, #ff3232, #ff6b6b); }
+        .confidence-bar.real { background: linear-gradient(90deg, #32ff64, #48cae4); }
+
+        .confidence-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 10px;
+        }
+
+        /* 이미지 3개 */
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .img-card {
+            background: #12121a;
+            border-radius: 15px;
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .img-card img {
+            width: 100%;
+            display: block;
+        }
+
+        .img-card p {
+            padding: 10px;
+            font-size: 0.85rem;
+            color: #aaa;
+        }
+
+        /* 설명 */
+        .description {
+            background: #12121a;
+            border-radius: 15px;
+            padding: 20px 25px;
+            color: #aaa;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            margin-bottom: 25px;
+            border-left: 4px solid #6c63ff;
+        }
+
+        /* 다시하기 버튼 */
+        #resetBtn {
+            display: block;
+            margin: 0 auto;
+            padding: 12px 40px;
+            background: transparent;
+            border: 2px solid #6c63ff;
+            border-radius: 50px;
+            color: #6c63ff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        #resetBtn:hover { background: #6c63ff; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <h1>🔍 DeepFake Detector</h1>
+    <p class="subtitle">AI가 이미지의 딥페이크 여부를 분석합니다</p>
+
+    <!-- 업로드 -->
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📁</div>
+        <p class="upload-text">이미지를 <span>클릭</span>하여 업로드하세요</p>
+        <p class="upload-text" style="font-size:0.85rem; margin-top:8px;">JPG, PNG 지원</p>
+        <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <!-- 미리보기 -->
+    <div id="preview">
+        <img id="previewImg" src="" alt="미리보기">
+    </div>
+
+    <!-- 분석 버튼 -->
+    <button id="analyzeBtn" onclick="analyze()">🔍 분석하기</button>
+
+    <!-- 로딩 -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <p style="color:#888;">AI가 분석 중입니다...</p>
+    </div>
+
+    <!-- 결과 -->
+    <div id="result">
+        <div class="verdict" id="verdictBox"></div>
+
+        <div class="confidence-wrap">
+            <p class="confidence-label">신뢰도</p>
+            <div class="confidence-bar-bg">
+                <div class="confidence-bar" id="confBar" style="width:0%"></div>
+            </div>
+            <p class="confidence-value" id="confValue"></p>
+        </div>
+
+        <div class="images-grid">
+            <div class="img-card">
+                <img id="imgOriginal" src="" alt="원본">
+                <p>원본 이미지</p>
+            </div>
+            <div class="img-card">
+                <img id="imgHeatmap" src="" alt="히트맵">
+                <p>Grad-CAM 히트맵</p>
+            </div>
+            <div class="img-card">
+                <img id="imgOverlay" src="" alt="오버레이">
+                <p>오버레이</p>
+            </div>
+        </div>
+
+        <div class="description" id="descBox"></div>
+
+        <button id="resetBtn" onclick="reset()">↩ 다시 분석하기</button>
+    </div>
+
+    <script>
+        let selectedFile = null;
+
+        // 파일 선택
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            selectedFile = e.target.files[0];
+            if (!selectedFile) return;
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                document.getElementById('previewImg').src = ev.target.result;
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('analyzeBtn').style.display = 'inline-block';
+                document.getElementById('result').style.display = 'none';
+            };
+            reader.readAsDataURL(selectedFile);
+        });
+
+        // 분석
+        async function analyze() {
+            if (!selectedFile) return;
+
+            document.getElementById('analyzeBtn').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const res  = await fetch('/predict', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                // 판정
+                const isFake = data.label === 'FAKE';
+                const box    = document.getElementById('verdictBox');
+                box.textContent = isFake ? '🚨 FAKE' : '✅ REAL';
+                box.className   = 'verdict ' + (isFake ? 'fake' : 'real');
+
+                // 신뢰도 바
+                const bar = document.getElementById('confBar');
+                bar.className = 'confidence-bar ' + (isFake ? 'fake' : 'real');
+                setTimeout(() => bar.style.width = data.confidence + '%', 100);
+                document.getElementById('confValue').textContent = data.confidence + '%';
+
+                // 이미지
+                document.getElementById('imgOriginal').src = 'data:image/png;base64,' + data.original;
+                document.getElementById('imgHeatmap').src  = 'data:image/png;base64,' + data.heatmap;
+                document.getElementById('imgOverlay').src  = 'data:image/png;base64,' + data.overlay;
+
+                // 설명
+                document.getElementById('descBox').textContent = isFake
+                    ? '⚠️ 이 이미지는 AI가 생성하거나 조작했을 가능성이 높습니다. 히트맵의 빨간 영역에서 딥페이크 흔적이 감지되었습니다.'
+                    : '✅ 이 이미지는 실제 사진일 가능성이 높습니다. 딥페이크 흔적이 감지되지 않았습니다.';
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('result').style.display  = 'block';
+
+            } catch(err) {
+                alert('분석 중 오류가 발생했습니다: ' + err);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').style.display = 'inline-block';
+            }
+        }
+
+        // 초기화
+        function reset() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('preview').style.display     = 'none';
+            document.getElementById('analyzeBtn').style.display  = 'none';
+            document.getElementById('result').style.display      = 'none';
+            document.getElementById('confBar').style.width       = '0%';
+        }
+    </script>
+</body>
+</html>
